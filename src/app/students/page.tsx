@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { EmptyState } from "@/components/empty-state";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
-import { listStudents } from "@/lib/store";
+import { listClasses, listStudents } from "@/lib/store";
+import { StudentImport } from "@/components/student-import";
 import {
   createStudentAction,
   deleteStudentAction,
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{
   success?: string;
   error?: string;
+  classId?: string;
 }>;
 
 export default async function StudentsPage({
@@ -22,14 +24,17 @@ export default async function StudentsPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const [students, params] = await Promise.all([listStudents(), searchParams]);
+  const [params, classes] = await Promise.all([searchParams, listClasses()]);
+  const selectedClassId = params.classId || undefined;
+  const students = await listStudents(selectedClassId);
+  const selectedClass = classes.find((classGroup) => classGroup.id === selectedClassId);
 
   return (
     <div className="page">
       <PageHeader
         eyebrow="学生管理"
         title="学生名单"
-        description="学号用于稳定匹配学生，姓名和班级会显示在生成的错题文档中。"
+        description="一个学生只归属一个班级；学科扩展时仍可沿用同一份学生名单。"
       />
       <Notice type="success" message={params.success} />
       <Notice type="error" message={params.error} />
@@ -51,8 +56,15 @@ export default async function StudentsPage({
             <input name="name" required maxLength={100} placeholder="学生姓名" />
           </label>
           <label>
-            <span>班级</span>
-            <input name="className" maxLength={100} placeholder="例如：高二（1）班" />
+            <span>班级 *</span>
+            <select name="classId" required defaultValue={selectedClassId ?? ""}>
+              <option value="">请选择班级</option>
+              {classes.map((classGroup) => (
+                <option key={classGroup.id} value={classGroup.id}>
+                  {classGroup.name}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <span>备注</span>
@@ -64,12 +76,25 @@ export default async function StudentsPage({
         </form>
       </section>
 
+      <StudentImport
+        classes={classes}
+        defaultClassId={selectedClassId}
+      />
+
       <section className="panel">
         <div className="section-heading">
           <div>
             <h2>全部学生</h2>
-            <p>共 {students.length} 人</p>
+            <p>
+              {selectedClass ? `${selectedClass.name} · ` : "全部班级 · "}
+              共 {students.length} 人
+            </p>
           </div>
+          {selectedClassId ? (
+            <a className="button button-secondary button-small" href="/students">
+              查看全部
+            </a>
+          ) : null}
         </div>
         {students.length === 0 ? (
           <EmptyState
@@ -107,7 +132,14 @@ export default async function StudentsPage({
                   </label>
                   <label>
                     <span>班级</span>
-                    <input name="className" defaultValue={student.className} maxLength={100} />
+                    <select name="classId" defaultValue={student.classId ?? ""} required>
+                      <option value="">请选择班级</option>
+                      {classes.map((classGroup) => (
+                        <option key={classGroup.id} value={classGroup.id}>
+                          {classGroup.name}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>备注</span>

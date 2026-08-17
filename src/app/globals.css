@@ -738,6 +738,180 @@ p {
   gap: 12px;
 }
 
+.student-create-form select,
+.student-edit-form select {
+  min-width: 0;
+}
+
+.class-create-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.class-list {
+  display: grid;
+  gap: 10px;
+}
+
+.class-row {
+  display: grid;
+  grid-template-columns: 190px minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+  border: 1px solid #eaecf0;
+  border-radius: 13px;
+  padding: 14px;
+}
+
+.class-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  align-self: center;
+}
+
+.class-avatar {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 12px;
+  color: #fff;
+  background: linear-gradient(145deg, #818cf8, #4f46e5);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.class-identity strong,
+.class-identity small {
+  display: block;
+}
+
+.class-identity strong {
+  font-size: 14px;
+}
+
+.class-identity small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.class-edit-form {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+}
+
+.class-edit-form label > span {
+  font-size: 10px;
+}
+
+.class-edit-form input {
+  height: 37px;
+  font-size: 12px;
+}
+
+.class-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.class-actions a {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-import-card {
+  scroll-margin-top: 20px;
+}
+
+.student-import-controls,
+.import-mapping-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  align-items: end;
+  gap: 12px;
+}
+
+.import-mapping-grid {
+  grid-template-columns: 1fr 1fr auto;
+  margin: 16px 0 14px;
+}
+
+.student-import-controls input[type="file"] {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px dashed #c7d2fe;
+  border-radius: 10px;
+  background: #f8faff;
+}
+
+.import-status {
+  margin: 13px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.success-text {
+  color: var(--success);
+}
+
+.error-text {
+  color: var(--danger);
+}
+
+.import-preview {
+  margin-top: 10px;
+  border-top: 1px solid #eaecf0;
+  padding-top: 3px;
+}
+
+.import-preview-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #eaecf0;
+  border-radius: 10px;
+}
+
+.import-preview-table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.import-preview-table th,
+.import-preview-table td {
+  border-bottom: 1px solid #f0f2f5;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.import-preview-table th {
+  color: #344054;
+  background: #f8fafc;
+  font-weight: 800;
+}
+
+.import-preview-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.import-hint {
+  display: block;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .student-list {
   display: grid;
   gap: 10px;
@@ -1513,7 +1687,8 @@ p {
   }
 
   .student-create-form,
-  .upload-form {
+  .upload-form,
+  .class-create-form {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -1529,6 +1704,20 @@ p {
   .student-edit-form {
     grid-column: 1 / -1;
     grid-row: 2;
+  }
+
+  .class-row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .class-edit-form {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .class-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
 
   .document-grid {
@@ -1616,7 +1805,10 @@ p {
   .generator-form-grid,
   .prerequisite-list,
   .student-create-form,
-  .upload-form {
+  .upload-form,
+  .class-create-form,
+  .student-import-controls,
+  .import-mapping-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1639,6 +1831,19 @@ p {
   .student-edit-form {
     grid-template-columns: 1fr 1fr;
     margin: 16px 0 10px;
+  }
+
+  .class-row {
+    display: block;
+  }
+
+  .class-edit-form {
+    grid-template-columns: 1fr auto;
+    margin: 16px 0 10px;
+  }
+
+  .class-actions {
+    justify-content: flex-end;
   }
 
   .student-row > form:last-child {

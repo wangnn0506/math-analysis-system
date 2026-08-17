@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
     "@napi-rs/canvas",
     "pdfjs-dist",
     "tesseract.js",
+    "xlsx",
   ],
 };
 

@@ -12,6 +12,7 @@ export const metadata: Metadata = {
 
 const navigation = [
   { href: "/", label: "工作台", icon: "⌂" },
+  { href: "/classes", label: "班级管理", icon: "班" },
   { href: "/students", label: "学生名单", icon: "人" },
   { href: "/documents", label: "试卷文档", icon: "卷" },
   { href: "/wrong-books", label: "生成错题集", icon: "集" },
@@ -44,13 +45,6 @@ export default function RootLayout({
                 </Link>
               ))}
             </nav>
-            <div className="sidebar-note">
-              <span className="sidebar-note-icon">i</span>
-              <div>
-                <strong>当前版本</strong>
-                <p>图片试卷按题号裁图，公式与图形保留原样。</p>
-              </div>
-            </div>
           </aside>
           <main className="main-content">{children}</main>
         </div>

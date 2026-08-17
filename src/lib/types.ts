@@ -1,7 +1,16 @@
+export type ClassGroup = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Student = {
   id: string;
   studentNo: string;
   name: string;
+  /** Stable relation to a class. Optional only for backwards-compatible data migration. */
+  classId?: string;
   className: string;
   notes: string;
   createdAt: string;
@@ -65,7 +74,8 @@ export type WrongBook = {
 };
 
 export type AppDatabase = {
-  version: 1;
+  version: 2;
+  classes: ClassGroup[];
   students: Student[];
   documents: SourceDocument[];
   questions: Question[];

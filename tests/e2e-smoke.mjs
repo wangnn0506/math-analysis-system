@@ -82,12 +82,18 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1440, height: 1050 } });
 
 try {
+  await page.goto("http://localhost:3000/classes");
+  await page.locator(".class-create-form select[name=grade]").selectOption("高二");
+  await page.locator(".class-create-form input[name=classNo]").fill("1");
+  await page.locator(".class-create-form button[type=submit]").click();
+  await page.waitForURL(/success=/);
+
   await page.goto("http://localhost:3000/students");
   await page.locator(".student-create-form input[name=studentNo]").fill("2026001");
   await page.locator(".student-create-form input[name=name]").fill("张三");
-  await page
-    .locator(".student-create-form input[name=className]")
-    .fill("高二（1）班");
+  await page.locator(".student-create-form select[name=classId]").selectOption({
+    label: "高二（1）班",
+  });
   await page.locator(".student-create-form button[type=submit]").click();
   await page.waitForURL(/success=/);
   await page.getByText("学生已添加").waitFor();
@@ -124,7 +130,6 @@ try {
     .locator("select[name=documentId]")
     .selectOption({ label: "函数单元测试（3 题）" });
   await page.locator("input[name=questionNumbers]").fill("1, 3");
-  await page.locator("input[name=title]").fill("张三函数错题练习");
   await page.screenshot({
     path: path.join(outputDirectory, "wrong-book-form.png"),
     fullPage: true,

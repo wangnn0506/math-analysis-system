@@ -23,6 +23,7 @@ export async function createStudentAction(formData: FormData) {
     await createStudent({
       studentNo: requiredText(formData, "studentNo"),
       name: requiredText(formData, "name"),
+      classId: requiredText(formData, "classId"),
       className: String(formData.get("className") ?? ""),
       notes: String(formData.get("notes") ?? ""),
     });
@@ -42,6 +43,7 @@ export async function updateStudentAction(formData: FormData) {
     await updateStudent(requiredText(formData, "id"), {
       studentNo: requiredText(formData, "studentNo"),
       name: requiredText(formData, "name"),
+      classId: requiredText(formData, "classId"),
       className: String(formData.get("className") ?? ""),
       notes: String(formData.get("notes") ?? ""),
     });

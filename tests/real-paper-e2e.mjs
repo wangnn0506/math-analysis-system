@@ -22,10 +22,18 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
 
 try {
+  await page.goto("http://localhost:3100/classes");
+  await page.locator(".class-create-form select[name=grade]").selectOption("高三");
+  await page.locator(".class-create-form input[name=classNo]").fill("1");
+  await page.locator(".class-create-form button[type=submit]").click();
+  await page.waitForURL(/success=/);
+
   await page.goto("http://localhost:3100/students");
   await page.locator(".student-create-form input[name=studentNo]").fill("REAL001");
   await page.locator(".student-create-form input[name=name]").fill("真实试卷测试学生");
-  await page.locator(".student-create-form input[name=className]").fill("高三测试班");
+  await page.locator(".student-create-form select[name=classId]").selectOption({
+    label: "高三（1）班",
+  });
   await page.locator(".student-create-form button[type=submit]").click();
   await page.waitForURL(/success=/);
 
@@ -50,7 +58,6 @@ try {
     await page.getByRole("button", { name: `选择第 ${number} 题` }).click();
   }
   await page.locator("select[name=studentId]").selectOption({ index: 1 });
-  await page.locator("input[name=title]").fill("真实试卷错题裁图验收");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "生成并下载错题 Word" }).click();
   const download = await downloadPromise;

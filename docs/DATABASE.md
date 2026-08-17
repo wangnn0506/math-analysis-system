@@ -19,7 +19,8 @@ data/
 
 ~~~json
 {
-  "version": 1,
+  "version": 2,
+  "classes": [],
   "students": [],
   "documents": [],
   "questions": [],
@@ -27,12 +28,13 @@ data/
 }
 ~~~
 
-version 用于未来进行显式数据迁移。应用遇到未知版本时拒绝启动写操作，不能猜测结构。
+version 用于显式数据迁移。应用可以读取并升级 version 1：从旧学生的 className 自动建立班级记录；未知版本仍拒绝启动写操作，不能猜测结构。
 
 ## 3. 实体关系
 
 ~~~mermaid
 erDiagram
+    CLASS_GROUP ||--o{ STUDENT : contains
     STUDENT ||--o{ WRONG_BOOK : owns
     SOURCE_DOCUMENT ||--o{ QUESTION : contains
     SOURCE_DOCUMENT ||--o{ WRONG_BOOK : selected_from
@@ -45,14 +47,26 @@ erDiagram
 | id | UUID 字符串 | 主键 |
 | studentNo | string | 必填；当前数据文件内唯一 |
 | name | string | 必填 |
-| className | string | 可空字符串 |
+| classId | UUID 字符串 | 指向 ClassGroup；旧数据迁移期间可短暂为空 |
+| className | string | 班级名称快照，兼容旧数据并用于错题文档标题 |
 | notes | string | 可空字符串 |
 | createdAt | ISO 时间 | 创建时间 |
 | updatedAt | ISO 时间 | 修改时间 |
 
 删除学生前检查 wrongBooks 是否引用该学生。有历史记录时拒绝删除，避免生成历史失去归属。
 
-## 5. SourceDocument
+## 5. ClassGroup
+
+| 字段 | 类型 | 规则 |
+| --- | --- | --- |
+| id | UUID 字符串 | 主键 |
+| name | string | 必填；当前数据文件内唯一；不可删除但可以修改 |
+| createdAt | ISO 时间 | 创建时间 |
+| updatedAt | ISO 时间 | 修改时间 |
+
+一个学生只能有一个 classId。班级改名时，Store 同步更新该班级全部学生的 className 快照。班级不与具体学科绑定，为后续数学、物理、化学等多学科扩展保留空间。
+
+## 6. SourceDocument
 
 | 字段 | 类型 | 规则 |
 | --- | --- | --- |
@@ -71,7 +85,7 @@ erDiagram
 
 删除试卷前检查 wrongBooks 引用。有历史时拒绝删除；成功删除记录后再尽力删除上传文件。
 
-## 6. Question
+## 7. Question
 
 | 字段 | 类型 | 规则 |
 | --- | --- | --- |
@@ -89,7 +103,7 @@ erDiagram
 
 图片题号重新识别或教师校正时，服务端会先验证题号唯一性及坐标范围，再以页面顺序整体替换该试卷的 Question 记录，同时重新计算全部 cropRegions、order、questionCount 和 SourceDocument.updatedAt。原始页面 PNG 不会改变。
 
-## 7. WrongBook
+## 8. WrongBook
 
 | 字段 | 类型 | 规则 |
 | --- | --- | --- |
@@ -104,7 +118,7 @@ erDiagram
 
 如果产品需要“历史文档永远不变”，下一版本应增加问题内容快照或保存生成文件。
 
-## 8. 写入流程
+## 9. 写入流程
 
 ~~~mermaid
 sequenceDiagram
@@ -123,9 +137,11 @@ sequenceDiagram
 
 如果 mutator 抛错，不写临时数据库。rename 之前进程中断时，旧 db.json 保持完整；遗留临时文件不会被读取。
 
-## 9. 不变量
+## 10. 不变量
 
-- version 必须为 1。
+- version 必须为 2（读取 version 1 时先在内存中迁移）。
+- classGroup.name 唯一。
+- student.classId 指向存在的班级；迁移完成后新建学生必须选择班级。
 - student.studentNo 唯一。
 - question.number 在 documentId 范围内唯一。
 - document.questionCount 等于所属 questions 数量。
@@ -134,14 +150,14 @@ sequenceDiagram
 
 JSON 文件无法自行执行外键或唯一约束，全部由 Store 的写方法集中保证。
 
-## 10. 保留与备份
+## 11. 保留与备份
 
 - 上传原文件、页面 PNG 和 db.json 必须作为一个整体备份。
 - 不要只备份 db.json，否则无法重新处理原试卷。
 - 删除 data 会删除全部学生、试卷和生成历史，开发验收数据除外不得自动清理。
 - 正式教师使用时建议每天复制 data 到受控备份目录。
 
-## 11. 容量边界
+## 12. 容量边界
 
 当前仓库每次写入都读取并重写完整 db.json，适合：
 
@@ -152,10 +168,11 @@ JSON 文件无法自行执行外键或唯一约束，全部由 Store 的写方�
 
 出现多人并发、多进程部署、文件达到几十 MB 或写入延迟明显时，应迁移 PostgreSQL，不应继续给 JSON 文件增加锁和索引模拟。
 
-## 12. PostgreSQL 迁移映射
+## 13. PostgreSQL 迁移映射
 
 | JSON 集合 | PostgreSQL 表 |
 | --- | --- |
+| classes | classes |
 | students | students |
 | documents | source_documents |
 | questions | questions |

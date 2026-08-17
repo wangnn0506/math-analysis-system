@@ -1,8 +1,9 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AppDatabase,
+  ClassGroup,
   DashboardStats,
   DocumentPage,
   Question,
@@ -20,7 +21,8 @@ const databasePath = path.join(dataDirectory, "db.json");
 export const uploadDirectory = path.join(dataDirectory, "uploads");
 
 const emptyDatabase = (): AppDatabase => ({
-  version: 1,
+  version: 2,
+  classes: [],
   students: [],
   documents: [],
   questions: [],
@@ -43,11 +45,56 @@ async function ensureStorage() {
 async function readDatabase(): Promise<AppDatabase> {
   await ensureStorage();
   const raw = await readFile(databasePath, "utf8");
-  const parsed = JSON.parse(raw) as AppDatabase;
-  if (parsed.version !== 1) {
+  const parsed = JSON.parse(raw) as {
+    version?: number;
+    classes?: ClassGroup[];
+    students?: Student[];
+    documents?: SourceDocument[];
+    questions?: Question[];
+    wrongBooks?: WrongBook[];
+  };
+  if (parsed.version !== 1 && parsed.version !== 2) {
     throw new Error("不支持的数据文件版本");
   }
-  return parsed;
+
+  const database = parsed as AppDatabase;
+  if (!Array.isArray(database.classes)) database.classes = [];
+
+  // Version 1 stored only a className on each student. Build stable class
+  // records in memory so existing data can be used immediately; the next
+  // write persists the upgraded version without dropping any student data.
+  const classByName = new Map<string, ClassGroup>();
+  const now = new Date().toISOString();
+  for (const classGroup of database.classes) {
+    if (classGroup?.id && classGroup?.name) classByName.set(classGroup.name, classGroup);
+  }
+  for (const student of database.students ?? []) {
+    const className = String(student.className ?? "").trim();
+    if (!className) {
+      delete student.classId;
+      continue;
+    }
+    let classGroup = student.classId
+      ? database.classes.find((item) => item.id === student.classId)
+      : undefined;
+    if (!classGroup) {
+      classGroup = classByName.get(className);
+    }
+    if (!classGroup) {
+      classGroup = {
+        id: legacyClassId(className),
+        name: className,
+        createdAt: student.createdAt || now,
+        updatedAt: student.updatedAt || now,
+      };
+      database.classes.push(classGroup);
+      classByName.set(className, classGroup);
+    }
+    student.classId = classGroup.id;
+    student.className = classGroup.name;
+  }
+  database.version = 2;
+  return database;
 }
 
 async function writeDatabase(database: AppDatabase) {
@@ -81,6 +128,25 @@ function assertMaximumLength(value: string, maximum: number, label: string) {
   }
 }
 
+function legacyClassId(name: string) {
+  const hex = createHash("sha256")
+    .update("math-paper-legacy-class:" + name)
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  // Turn the deterministic hash into a UUID-shaped value. Determinism is
+  // important while a version-1 database is read before its first write.
+  hex[12] = "5";
+  hex[16] = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join(""),
+  ].join("-");
+}
+
 export async function getDashboardStats(): Promise<DashboardStats> {
   const database = await readDatabase();
   return {
@@ -91,13 +157,82 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
-export async function listStudents(): Promise<Student[]> {
+export async function listClasses(): Promise<ClassGroup[]> {
   const database = await readDatabase();
-  return database.students.sort((a, b) =>
+  return [...database.classes].sort((a, b) =>
+    a.name.localeCompare(b.name, "zh-CN"),
+  );
+}
+
+export async function listClassesWithCounts() {
+  const database = await readDatabase();
+  return [...database.classes]
+    .map((classGroup) => ({
+      ...classGroup,
+      studentCount: database.students.filter(
+        (student) => student.classId === classGroup.id,
+      ).length,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+}
+
+export async function getClass(id: string): Promise<ClassGroup | null> {
+  const database = await readDatabase();
+  return database.classes.find((classGroup) => classGroup.id === id) ?? null;
+}
+
+export async function createClass(input: { name: string }) {
+  return mutateDatabase((database) => {
+    const name = input.name.trim();
+    if (!name) throw new Error("请填写班级名称");
+    assertMaximumLength(name, 100, "班级名称");
+    if (database.classes.some((classGroup) => classGroup.name === name)) {
+      throw new Error("该班级已存在");
+    }
+    const now = new Date().toISOString();
+    const classGroup: ClassGroup = {
+      id: randomUUID(),
+      name,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.classes.push(classGroup);
+    return classGroup;
+  });
+}
+
+export async function updateClass(id: string, input: { name: string }) {
+  return mutateDatabase((database) => {
+    const classGroup = database.classes.find((item) => item.id === id);
+    if (!classGroup) throw new Error("班级不存在");
+    const name = input.name.trim();
+    if (!name) throw new Error("请填写班级名称");
+    assertMaximumLength(name, 100, "班级名称");
+    if (
+      database.classes.some(
+        (item) => item.id !== id && item.name === name,
+      )
+    ) {
+      throw new Error("该班级已存在");
+    }
+    classGroup.name = name;
+    classGroup.updatedAt = new Date().toISOString();
+    for (const student of database.students) {
+      if (student.classId === id) student.className = name;
+    }
+    return classGroup;
+  });
+}
+
+export async function listStudents(classId?: string): Promise<Student[]> {
+  const database = await readDatabase();
+  return database.students
+    .filter((student) => !classId || student.classId === classId)
+    .sort((a, b) =>
     [a.className, a.studentNo]
       .join("-")
       .localeCompare([b.className, b.studentNo].join("-"), "zh-CN"),
-  );
+    );
 }
 
 export async function getStudent(id: string) {
@@ -108,13 +243,22 @@ export async function getStudent(id: string) {
 export async function createStudent(input: {
   studentNo: string;
   name: string;
+  classId?: string;
   className?: string;
   notes?: string;
 }) {
   return mutateDatabase((database) => {
     const studentNo = input.studentNo.trim();
     const name = input.name.trim();
-    const className = input.className?.trim() ?? "";
+    const requestedClassName = input.className?.trim() ?? "";
+    const classGroup = input.classId
+      ? database.classes.find((item) => item.id === input.classId)
+      : requestedClassName
+        ? database.classes.find((item) => item.name === requestedClassName)
+        : undefined;
+    if (input.classId && !classGroup) throw new Error("所选班级不存在");
+    const classId = classGroup?.id;
+    const className = classGroup?.name ?? requestedClassName;
     const notes = input.notes?.trim() ?? "";
     assertMaximumLength(studentNo, 64, "学号");
     assertMaximumLength(name, 100, "姓名");
@@ -128,6 +272,7 @@ export async function createStudent(input: {
       id: randomUUID(),
       studentNo,
       name,
+      classId,
       className,
       notes,
       createdAt: now,
@@ -140,14 +285,28 @@ export async function createStudent(input: {
 
 export async function updateStudent(
   id: string,
-  input: { studentNo: string; name: string; className?: string; notes?: string },
+  input: {
+    studentNo: string;
+    name: string;
+    classId?: string;
+    className?: string;
+    notes?: string;
+  },
 ) {
   return mutateDatabase((database) => {
     const student = database.students.find((item) => item.id === id);
     if (!student) throw new Error("学生不存在");
     const studentNo = input.studentNo.trim();
     const name = input.name.trim();
-    const className = input.className?.trim() ?? "";
+    const requestedClassName = input.className?.trim() ?? "";
+    const classGroup = input.classId
+      ? database.classes.find((item) => item.id === input.classId)
+      : requestedClassName
+        ? database.classes.find((item) => item.name === requestedClassName)
+        : undefined;
+    if (input.classId && !classGroup) throw new Error("所选班级不存在");
+    const classId = classGroup?.id;
+    const className = classGroup?.name ?? requestedClassName;
     const notes = input.notes?.trim() ?? "";
     assertMaximumLength(studentNo, 64, "学号");
     assertMaximumLength(name, 100, "姓名");
@@ -162,10 +321,60 @@ export async function updateStudent(
     }
     student.studentNo = studentNo;
     student.name = name;
+    student.classId = classId;
     student.className = className;
     student.notes = notes;
     student.updatedAt = new Date().toISOString();
     return student;
+  });
+}
+
+export async function importStudents(
+  classId: string,
+  rows: Array<{ rowNumber: number; studentNo: string; name: string }>,
+) {
+  return mutateDatabase((database) => {
+    const classGroup = database.classes.find((item) => item.id === classId);
+    if (!classGroup) throw new Error("所选班级不存在");
+    if (rows.length === 0) throw new Error("没有可导入的学生");
+    if (rows.length > 5000) throw new Error("一次最多导入 5000 名学生");
+
+    const errors: Array<{ rowNumber: number; message: string }> = [];
+    const accepted: Array<{ studentNo: string; name: string }> = [];
+    const seen = new Set(database.students.map((student) => student.studentNo));
+    for (const row of rows) {
+      const studentNo = row.studentNo.trim();
+      const name = row.name.trim();
+      if (!studentNo || !name) {
+        errors.push({ rowNumber: row.rowNumber, message: "学号和姓名不能为空" });
+        continue;
+      }
+      if (studentNo.length > 64 || name.length > 100) {
+        errors.push({ rowNumber: row.rowNumber, message: "学号或姓名过长" });
+        continue;
+      }
+      if (seen.has(studentNo)) {
+        errors.push({ rowNumber: row.rowNumber, message: "学号已存在或在文件中重复" });
+        continue;
+      }
+      seen.add(studentNo);
+      accepted.push({ studentNo, name });
+    }
+
+    const now = new Date().toISOString();
+    for (const item of accepted) {
+      database.students.push({
+        id: randomUUID(),
+        studentNo: item.studentNo,
+        name: item.name,
+        classId,
+        className: classGroup.name,
+        notes: "",
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+    return { imported: accepted.length, skipped: errors.length, errors };
   });
 }
 
