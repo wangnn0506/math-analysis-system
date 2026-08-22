@@ -25,6 +25,8 @@ flowchart LR
 - app/page.tsx：工作台。
 - app/classes：班级创建、改名和人数概览。
 - app/students：学生名单、班级筛选、手动添加和 Excel 批量导入。
+- app/parent：家长登录、改密、手机号找回、错题本和四个功能入口。
+- app/curated-papers：教师从已上传试卷发布精选试卷。
 - app/documents：试卷列表、上传入口和拆题预览。
 - app/wrong-books：错题集生成和历史。
 
@@ -38,6 +40,7 @@ flowchart LR
 - GET /api/wrong-books/:id：根据历史记录重新生成 DOCX。
 - POST /api/students/import/preview：解析 xlsx/xls/csv 的首个工作表并返回列映射预览。
 - POST /api/students/import：服务端再次校验列映射、重复学号和班级后批量写入。
+- GET /api/parent/wrong-books/:id：校验家长会话和学生归属后下载错题文档。
 
 ### 领域与基础设施
 
@@ -47,6 +50,8 @@ flowchart LR
 - lib/documents/generate.ts：生成 Word 文档。
 - lib/store.ts：读取和原子更新 JSON 数据。
 - lib/students/import.ts：使用 SheetJS 读取表格，识别中英文表头并推测无表头列。
+- lib/parent-account.ts：家长账号拼音生成、密码摘要和手机号校验。
+- lib/parent-auth.ts：家长签名 Cookie 会话与访问控制。
 - lib/text.ts：题号规范化、输入解析和安全文件名。
 
 ## 3. 文档处理流程
@@ -78,6 +83,8 @@ sequenceDiagram
 PDF 有文字层时读取每页文字项的坐标，以纵坐标分组为行、横坐标排序为行内顺序；没有文字层时使用 PDF.js 和 @napi-rs/canvas 渲染为页面 PNG，再进入图片题号定位。普通 DOCX 使用 Mammoth 提取段落纯文本；图片型 DOCX 则由 JSZip 按文档关系顺序提取页面，使用左侧题号区域 OCR，再通过题号格式、候选置信度和跨页连续关系确认编号。
 
 学生批量导入使用独立的两步流程：浏览器先上传表格到 preview 接口，服务端只读取首个工作表并返回有限行预览；教师选择班级、姓名列和学号列后，浏览器提交结构化行数据，服务端重新校验并以单次原子写入保存。表格中的班级列不覆盖教师在页面选择的班级，避免一份名单误写入多个班级。
+
+家长端使用独立会话：登录后 Cookie 只保存签名账号标识，不把密码放入浏览器；服务端每次读取账号和学生关系。家长错题下载使用单独接口再次检查学生归属，不能仅凭 URL 访问其他学生的文档。
 
 ## 4. 错题集生成流程
 

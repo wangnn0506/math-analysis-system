@@ -4,15 +4,25 @@ import path from "node:path";
 import type {
   AppDatabase,
   ClassGroup,
+  CuratedPaper,
   DashboardStats,
   DocumentPage,
+  ParentAccount,
+  KnowledgePoint,
   Question,
   QuestionAnchor,
   QuestionCropRegion,
   SourceDocument,
+  ScoreRecord,
   Student,
   WrongBook,
 } from "@/lib/types";
+import {
+  buildParentUsername,
+  createPasswordHash,
+  DEFAULT_PARENT_CREDENTIALS,
+  DEFAULT_PARENT_PASSWORD,
+} from "@/lib/parent-account";
 
 const dataDirectory = process.env.APP_DATA_DIR
   ? path.resolve(process.env.APP_DATA_DIR)
@@ -21,8 +31,12 @@ const databasePath = path.join(dataDirectory, "db.json");
 export const uploadDirectory = path.join(dataDirectory, "uploads");
 
 const emptyDatabase = (): AppDatabase => ({
-  version: 2,
+  version: 3,
   classes: [],
+  parentAccounts: [],
+  curatedPapers: [],
+  scoreRecords: [],
+  knowledgePoints: [],
   students: [],
   documents: [],
   questions: [],
@@ -48,17 +62,25 @@ async function readDatabase(): Promise<AppDatabase> {
   const parsed = JSON.parse(raw) as {
     version?: number;
     classes?: ClassGroup[];
+    parentAccounts?: ParentAccount[];
+    curatedPapers?: CuratedPaper[];
+    scoreRecords?: ScoreRecord[];
+    knowledgePoints?: KnowledgePoint[];
     students?: Student[];
     documents?: SourceDocument[];
     questions?: Question[];
     wrongBooks?: WrongBook[];
   };
-  if (parsed.version !== 1 && parsed.version !== 2) {
+  if (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) {
     throw new Error("不支持的数据文件版本");
   }
 
   const database = parsed as AppDatabase;
   if (!Array.isArray(database.classes)) database.classes = [];
+  if (!Array.isArray(database.parentAccounts)) database.parentAccounts = [];
+  if (!Array.isArray(database.curatedPapers)) database.curatedPapers = [];
+  if (!Array.isArray(database.scoreRecords)) database.scoreRecords = [];
+  if (!Array.isArray(database.knowledgePoints)) database.knowledgePoints = [];
 
   // Version 1 stored only a className on each student. Build stable class
   // records in memory so existing data can be used immediately; the next
@@ -93,8 +115,51 @@ async function readDatabase(): Promise<AppDatabase> {
     student.classId = classGroup.id;
     student.className = classGroup.name;
   }
-  database.version = 2;
+  ensureParentAccounts(database);
+  database.version = 3;
   return database;
+}
+
+function legacyParentAccountId(studentId: string) {
+  const hex = createHash("sha256")
+    .update("math-paper-parent-account:" + studentId)
+    .digest("hex")
+    .slice(0, 32)
+    .split("");
+  hex[12] = "5";
+  hex[16] = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return [
+    hex.slice(0, 8).join(""),
+    hex.slice(8, 12).join(""),
+    hex.slice(12, 16).join(""),
+    hex.slice(16, 20).join(""),
+    hex.slice(20, 32).join(""),
+  ].join("-");
+}
+
+function ensureParentAccounts(database: AppDatabase) {
+  const now = new Date().toISOString();
+  for (const student of database.students ?? []) {
+    const username = buildParentUsername(student.name, student.studentNo);
+    const existing = database.parentAccounts.find(
+      (account) => account.studentId === student.id,
+    );
+    if (existing) {
+      existing.username = username;
+      continue;
+    }
+    database.parentAccounts.push({
+      id: legacyParentAccountId(student.id),
+      studentId: student.id,
+      username,
+      passwordHash: DEFAULT_PARENT_CREDENTIALS.hash,
+      passwordSalt: DEFAULT_PARENT_CREDENTIALS.salt,
+      phone: "",
+      mustChangePassword: true,
+      createdAt: student.createdAt || now,
+      updatedAt: now,
+    });
+  }
 }
 
 async function writeDatabase(database: AppDatabase) {
@@ -240,6 +305,95 @@ export async function getStudent(id: string) {
   return database.students.find((student) => student.id === id) ?? null;
 }
 
+function createParentAccountForStudent(
+  database: AppDatabase,
+  student: Student,
+  id = randomUUID(),
+) {
+  const password = createPasswordHash(DEFAULT_PARENT_PASSWORD);
+  const now = new Date().toISOString();
+  const account: ParentAccount = {
+    id,
+    studentId: student.id,
+    username: buildParentUsername(student.name, student.studentNo),
+    passwordHash: password.hash,
+    passwordSalt: password.salt,
+    phone: "",
+    mustChangePassword: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+  database.parentAccounts.push(account);
+  return account;
+}
+
+export async function getParentAccountByUsername(username: string) {
+  const database = await readDatabase();
+  return database.parentAccounts.find(
+    (account) => account.username === username.trim().toLowerCase(),
+  ) ?? null;
+}
+
+export async function getParentAccountById(id: string) {
+  const database = await readDatabase();
+  return database.parentAccounts.find((account) => account.id === id) ?? null;
+}
+
+export async function getParentAccountForStudent(studentId: string) {
+  const database = await readDatabase();
+  return database.parentAccounts.find((account) => account.studentId === studentId) ?? null;
+}
+
+export async function changeParentPassword(id: string, password: string) {
+  return mutateDatabase((database) => {
+    const account = database.parentAccounts.find((item) => item.id === id);
+    if (!account) throw new Error("家长账号不存在");
+    const result = createPasswordHash(password);
+    account.passwordHash = result.hash;
+    account.passwordSalt = result.salt;
+    account.mustChangePassword = false;
+    account.updatedAt = new Date().toISOString();
+    return account;
+  });
+}
+
+export async function bindParentPhone(id: string, phone: string) {
+  return mutateDatabase((database) => {
+    const account = database.parentAccounts.find((item) => item.id === id);
+    if (!account) throw new Error("家长账号不存在");
+    account.phone = phone.trim();
+    account.updatedAt = new Date().toISOString();
+    return account;
+  });
+}
+
+export async function recoverParentPassword(username: string, phone: string) {
+  return mutateDatabase((database) => {
+    const account = database.parentAccounts.find(
+      (item) =>
+        item.username === username.trim().toLowerCase() &&
+        item.phone === phone.trim(),
+    );
+    if (!account) throw new Error("账号或绑定手机号不匹配");
+    const result = createPasswordHash(DEFAULT_PARENT_PASSWORD);
+    account.passwordHash = result.hash;
+    account.passwordSalt = result.salt;
+    account.mustChangePassword = true;
+    account.updatedAt = new Date().toISOString();
+    return account;
+  });
+}
+
+export async function touchParentLogin(id: string) {
+  return mutateDatabase((database) => {
+    const account = database.parentAccounts.find((item) => item.id === id);
+    if (!account) return null;
+    account.lastLoginAt = new Date().toISOString();
+    account.updatedAt = new Date().toISOString();
+    return account;
+  });
+}
+
 export async function createStudent(input: {
   studentNo: string;
   name: string;
@@ -279,6 +433,7 @@ export async function createStudent(input: {
       updatedAt: now,
     };
     database.students.push(student);
+    createParentAccountForStudent(database, student);
     return student;
   });
 }
@@ -325,6 +480,11 @@ export async function updateStudent(
     student.className = className;
     student.notes = notes;
     student.updatedAt = new Date().toISOString();
+    const account = database.parentAccounts.find((item) => item.studentId === id);
+    if (account) {
+      account.username = buildParentUsername(student.name, student.studentNo);
+      account.updatedAt = student.updatedAt;
+    }
     return student;
   });
 }
@@ -363,7 +523,7 @@ export async function importStudents(
 
     const now = new Date().toISOString();
     for (const item of accepted) {
-      database.students.push({
+      const student: Student = {
         id: randomUUID(),
         studentNo: item.studentNo,
         name: item.name,
@@ -372,7 +532,9 @@ export async function importStudents(
         notes: "",
         createdAt: now,
         updatedAt: now,
-      });
+      };
+      database.students.push(student);
+      createParentAccountForStudent(database, student);
     }
     return { imported: accepted.length, skipped: errors.length, errors };
   });
@@ -384,6 +546,84 @@ export async function deleteStudent(id: string) {
       throw new Error("该学生已有错题文档记录，暂不能删除");
     }
     database.students = database.students.filter((student) => student.id !== id);
+    database.parentAccounts = database.parentAccounts.filter(
+      (account) => account.studentId !== id,
+    );
+  });
+}
+
+export async function listCuratedPapers(options?: { publishedOnly?: boolean }) {
+  const database = await readDatabase();
+  return [...database.curatedPapers]
+    .filter((paper) => !options?.publishedOnly || paper.published)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getCuratedPaper(id: string) {
+  const database = await readDatabase();
+  const paper = database.curatedPapers.find((item) => item.id === id);
+  if (!paper) return null;
+  const document = database.documents.find((item) => item.id === paper.documentId);
+  return document ? { paper, document } : null;
+}
+
+export async function createCuratedPaper(input: {
+  title: string;
+  subject: string;
+  grade: string;
+  description?: string;
+  documentId: string;
+  published?: boolean;
+}) {
+  return mutateDatabase((database) => {
+    const title = input.title.trim();
+    const subject = input.subject.trim();
+    const grade = input.grade.trim();
+    const description = input.description?.trim() ?? "";
+    if (!title || !subject || !grade || !input.documentId) {
+      throw new Error("请填写精选试卷的完整信息");
+    }
+    if (!database.documents.some((document) => document.id === input.documentId)) {
+      throw new Error("关联试卷不存在");
+    }
+    assertMaximumLength(title, 150, "试卷名称");
+    assertMaximumLength(subject, 50, "学科");
+    assertMaximumLength(grade, 30, "年级");
+    assertMaximumLength(description, 500, "试卷说明");
+    const now = new Date().toISOString();
+    const paper: CuratedPaper = {
+      id: randomUUID(),
+      title,
+      subject,
+      grade,
+      description,
+      documentId: input.documentId,
+      published: input.published ?? true,
+      createdAt: now,
+      updatedAt: now,
+    };
+    database.curatedPapers.push(paper);
+    return paper;
+  });
+}
+
+export async function updateCuratedPaper(
+  id: string,
+  input: Partial<Pick<CuratedPaper, "title" | "subject" | "grade" | "description" | "published">>,
+) {
+  return mutateDatabase((database) => {
+    const paper = database.curatedPapers.find((item) => item.id === id);
+    if (!paper) throw new Error("精选试卷不存在");
+    if (input.title !== undefined) paper.title = input.title.trim();
+    if (input.subject !== undefined) paper.subject = input.subject.trim();
+    if (input.grade !== undefined) paper.grade = input.grade.trim();
+    if (input.description !== undefined) paper.description = input.description.trim();
+    if (input.published !== undefined) paper.published = input.published;
+    if (!paper.title || !paper.subject || !paper.grade) {
+      throw new Error("精选试卷信息不能为空");
+    }
+    paper.updatedAt = new Date().toISOString();
+    return paper;
   });
 }
 
@@ -643,6 +883,11 @@ export async function listWrongBooks() {
     }))
     .filter((item) => item.student && item.document)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function listWrongBooksForStudent(studentId: string) {
+  const items = await listWrongBooks();
+  return items.filter((item) => item.studentId === studentId);
 }
 
 export async function createWrongBook(input: {

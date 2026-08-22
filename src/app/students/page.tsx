@@ -4,6 +4,7 @@ import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { listClasses, listStudents } from "@/lib/store";
 import { StudentImport } from "@/components/student-import";
+import { buildParentUsername } from "@/lib/parent-account";
 import {
   createStudentAction,
   deleteStudentAction,
@@ -113,6 +114,7 @@ export default async function StudentsPage({
                   <div>
                     <strong>{student.name}</strong>
                     <small>{student.studentNo}</small>
+                    <small>家长账号：{buildParentUsername(student.name, student.studentNo)}</small>
                   </div>
                 </div>
                 <form action={updateStudentAction} className="student-edit-form">

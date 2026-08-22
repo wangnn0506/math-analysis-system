@@ -5,6 +5,49 @@ export type ClassGroup = {
   updatedAt: string;
 };
 
+export type ParentAccount = {
+  id: string;
+  studentId: string;
+  username: string;
+  passwordHash: string;
+  passwordSalt: string;
+  phone: string;
+  mustChangePassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+};
+
+export type CuratedPaper = {
+  id: string;
+  title: string;
+  subject: string;
+  grade: string;
+  description: string;
+  documentId: string;
+  published: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ScoreRecord = {
+  id: string;
+  studentId: string;
+  examName: string;
+  subject: string;
+  score: number;
+  totalScore: number;
+  examDate: string;
+  createdAt: string;
+};
+
+export type KnowledgePoint = {
+  id: string;
+  name: string;
+  subject: string;
+  createdAt: string;
+};
+
 export type Student = {
   id: string;
   studentNo: string;
@@ -57,6 +100,7 @@ export type Question = {
   documentId: string;
   number: string;
   content: string;
+  knowledgePointIds?: string[];
   anchor?: QuestionAnchor;
   cropRegions?: QuestionCropRegion[];
   order: number;
@@ -74,8 +118,12 @@ export type WrongBook = {
 };
 
 export type AppDatabase = {
-  version: 2;
+  version: 3;
   classes: ClassGroup[];
+  parentAccounts: ParentAccount[];
+  curatedPapers: CuratedPaper[];
+  scoreRecords: ScoreRecord[];
+  knowledgePoints: KnowledgePoint[];
   students: Student[];
   documents: SourceDocument[];
   questions: Question[];
