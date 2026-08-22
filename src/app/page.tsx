@@ -61,44 +61,6 @@ export default async function DashboardPage() {
         </article>
       </section>
 
-      <section className="workflow-card">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">三步完成</p>
-            <h2>最短使用路径</h2>
-          </div>
-        </div>
-        <div className="workflow">
-          <Link href="/students" className="workflow-step">
-            <span>01</span>
-            <div>
-              <strong>建立学生名单</strong>
-              <p>录入学号、姓名和班级</p>
-            </div>
-          </Link>
-          <div className="workflow-arrow" aria-hidden="true">
-            →
-          </div>
-          <Link href="/documents" className="workflow-step">
-            <span>02</span>
-            <div>
-              <strong>上传并检查试卷</strong>
-              <p>自动识别题号，人工确认内容</p>
-            </div>
-          </Link>
-          <div className="workflow-arrow" aria-hidden="true">
-            →
-          </div>
-          <Link href="/wrong-books" className="workflow-step">
-            <span>03</span>
-            <div>
-              <strong>输入错题号</strong>
-              <p>一键下载学生专属 Word</p>
-            </div>
-          </Link>
-        </div>
-      </section>
-
       <div className="two-column">
         <section className="panel">
           <div className="section-heading">
