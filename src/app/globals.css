@@ -197,6 +197,18 @@ p {
   transform: translateX(2px);
 }
 
+.navigation a.active {
+  color: var(--primary-dark);
+  background: var(--primary-soft);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.navigation a.active .nav-icon {
+  border-color: #c7d2fe;
+  color: var(--primary-dark);
+  background: #fff;
+}
+
 .nav-icon {
   display: grid;
   width: 28px;
@@ -831,6 +843,39 @@ p {
 
 .student-import-card {
   scroll-margin-top: 20px;
+}
+
+.student-filter-panel {
+  margin-bottom: 20px;
+}
+
+.list-filter-form {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.list-filter-form label {
+  min-width: 180px;
+  flex: 1 1 220px;
+}
+
+.list-filter-form-compact {
+  justify-content: flex-end;
+}
+
+.list-filter-form-compact label {
+  min-width: 210px;
+  flex: 0 1 270px;
+}
+
+.filter-reset {
+  align-self: center;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .student-import-controls,

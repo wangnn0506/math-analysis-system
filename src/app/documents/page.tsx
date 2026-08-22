@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = Promise<{
   success?: string;
   error?: string;
+  q?: string;
 }>;
 
 export default async function DocumentsPage({
@@ -23,7 +24,16 @@ export default async function DocumentsPage({
 }: {
   searchParams: SearchParams;
 }) {
-  const [documents, params] = await Promise.all([listDocuments(), searchParams]);
+  const [allDocuments, params] = await Promise.all([listDocuments(), searchParams]);
+  const query = params.q?.trim() ?? "";
+  const documents = query
+    ? allDocuments.filter((document) =>
+        [document.title, document.originalFilename]
+          .join(" ")
+          .toLocaleLowerCase("zh-CN")
+          .includes(query.toLocaleLowerCase("zh-CN")),
+      )
+    : allDocuments;
 
   return (
     <div className="page">
@@ -61,14 +71,39 @@ export default async function DocumentsPage({
         <div className="section-heading">
           <div>
             <h2>已上传试卷</h2>
-            <p>共 {documents.length} 份</p>
+            <p>
+              {query ? `显示 ${documents.length} / ${allDocuments.length} 份` : `共 ${documents.length} 份`}
+            </p>
           </div>
+          <form method="get" className="list-filter-form list-filter-form-compact">
+            <label>
+              <span>搜索试卷</span>
+              <input
+                name="q"
+                defaultValue={query}
+                maxLength={150}
+                placeholder="试卷名称或文件名"
+              />
+            </label>
+            <button className="button button-secondary button-small" type="submit">
+              搜索
+            </button>
+            {query ? (
+              <a className="filter-reset" href="/documents">
+                清除
+              </a>
+            ) : null}
+          </form>
         </div>
         {documents.length === 0 ? (
           <EmptyState
             icon="卷"
-            title="还没有试卷"
-            description="使用上方上传区域添加第一份试卷文档。"
+            title={allDocuments.length === 0 ? "还没有试卷" : "没有找到匹配试卷"}
+            description={
+              allDocuments.length === 0
+                ? "使用上方上传区域添加第一份试卷文档。"
+                : "请尝试更换关键词，或清除搜索条件。"
+            }
           />
         ) : (
           <div className="document-grid">

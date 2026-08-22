@@ -31,14 +31,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <nav className="navigation" aria-label="主导航">
-          {navigation.map((item) => (
-            <Link href={item.href} key={item.href}>
+          {navigation.map((item) => {
+            const isActive =
+              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+
+            return (
+            <Link
+              href={item.href}
+              key={item.href}
+              className={isActive ? "active" : undefined}
+              aria-current={isActive ? "page" : undefined}
+            >
               <span className="nav-icon" aria-hidden="true">
                 {item.icon}
               </span>
               {item.label}
             </Link>
-          ))}
+            );
+          })}
         </nav>
       </aside>
       <main className="main-content">{children}</main>

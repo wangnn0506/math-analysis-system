@@ -18,6 +18,7 @@ type SearchParams = Promise<{
   success?: string;
   error?: string;
   classId?: string;
+  q?: string;
 }>;
 
 export default async function StudentsPage({
@@ -27,7 +28,16 @@ export default async function StudentsPage({
 }) {
   const [params, classes] = await Promise.all([searchParams, listClasses()]);
   const selectedClassId = params.classId || undefined;
+  const query = params.q?.trim() ?? "";
   const students = await listStudents(selectedClassId);
+  const visibleStudents = query
+    ? students.filter((student) =>
+        [student.name, student.studentNo, student.notes, student.className]
+          .join(" ")
+          .toLocaleLowerCase("zh-CN")
+          .includes(query.toLocaleLowerCase("zh-CN")),
+      )
+    : students;
   const selectedClass = classes.find((classGroup) => classGroup.id === selectedClassId);
 
   return (
@@ -82,13 +92,46 @@ export default async function StudentsPage({
         defaultClassId={selectedClassId}
       />
 
+      <section className="panel student-filter-panel">
+        <form method="get" className="list-filter-form">
+          <label>
+            <span>筛选班级</span>
+            <select name="classId" defaultValue={selectedClassId ?? ""}>
+              <option value="">全部班级</option>
+              {classes.map((classGroup) => (
+                <option key={classGroup.id} value={classGroup.id}>
+                  {classGroup.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>搜索学生</span>
+            <input
+              name="q"
+              defaultValue={query}
+              maxLength={100}
+              placeholder="姓名、学号或备注"
+            />
+          </label>
+          <button className="button button-secondary" type="submit">
+            筛选
+          </button>
+          {selectedClassId || query ? (
+            <a className="filter-reset" href="/students">
+              清除筛选
+            </a>
+          ) : null}
+        </form>
+      </section>
+
       <section className="panel">
         <div className="section-heading">
           <div>
             <h2>全部学生</h2>
             <p>
               {selectedClass ? `${selectedClass.name} · ` : "全部班级 · "}
-              共 {students.length} 人
+              {query ? `显示 ${visibleStudents.length} / ${students.length} 人` : `共 ${students.length} 人`}
             </p>
           </div>
           {selectedClassId ? (
@@ -97,15 +140,19 @@ export default async function StudentsPage({
             </a>
           ) : null}
         </div>
-        {students.length === 0 ? (
+        {visibleStudents.length === 0 ? (
           <EmptyState
             icon="人"
-            title="名单还是空的"
-            description="在上方填写学号和姓名，添加第一名学生。"
+            title={students.length === 0 ? "名单还是空的" : "没有找到匹配学生"}
+            description={
+              students.length === 0
+                ? "在上方填写学号和姓名，添加第一名学生。"
+                : "请尝试更换关键词，或清除筛选条件。"
+            }
           />
         ) : (
           <div className="student-list">
-            {students.map((student) => (
+            {visibleStudents.map((student) => (
               <article className="student-row" key={student.id}>
                 <div className="student-identity">
                   <span className="student-avatar">
