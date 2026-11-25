@@ -1,0 +1,54 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: math_ai
+          POSTGRES_USER: math_ai
+          POSTGRES_PASSWORD: ci-local-only
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U math_ai -d math_ai"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DJANGO_SECRET_KEY: ci-local-only-development-key
+      MATH_DB_PASSWORD: ci-local-only
+      MATH_UPLOAD_TEMP_DIR: /tmp
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r backend/requirements.lock.txt
+          npm install --global pnpm@11.25.0
+          pnpm --dir frontend install --frozen-lockfile
+      - name: Verify backend
+        run: |
+          .venv/bin/python backend/manage.py check
+          .venv/bin/python backend/manage.py makemigrations --check --dry-run
+          .venv/bin/python backend/manage.py test core
+          .venv/bin/python backend/manage.py evaluate_review
+      - name: Type check and build frontend
+        run: pnpm --dir frontend build
+      - name: Install browser and run the publication flow
+        run: |
+          pnpm --dir frontend exec playwright install --with-deps chromium
+          .venv/bin/python scripts/test_browser.py

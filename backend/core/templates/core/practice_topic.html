@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="{% if english %}en{% else %}zh-CN{% endif %}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ content.title }} · {% if english %}Math Practice{% else %}错题通{% endif %}</title>
+  <meta name="description" content="{{ content.description|default:content.title|truncatechars:160 }}">
+  {% if preview %}<meta name="robots" content="noindex">{% endif %}
+  {% if canonical %}<link rel="canonical" href="{{ canonical }}">{% endif %}
+  {% if alternates.en %}
+  <link rel="alternate" hreflang="zh-CN" href="{{ alternates.zh }}">
+  <link rel="alternate" hreflang="en" href="{{ alternates.en }}">
+  <link rel="alternate" hreflang="x-default" href="{{ alternates.zh }}">
+  {% endif %}
+  {% if has_math %}
+  <link rel="stylesheet" href="{% url 'topic-asset' 'katex.min.css' %}">
+  <script defer src="{% url 'topic-asset' 'katex.min.js' %}"></script>
+  <script defer src="{% url 'topic-asset' 'auto-render.min.js' %}"></script>
+  <script defer src="{% url 'topic-asset' 'render-math.js' %}"></script>
+  {% endif %}
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f8fafc; color: #0f172a; font: 1rem/1.65 system-ui, sans-serif; overflow-wrap: anywhere; }
+    main, .brand { max-width: 50rem; margin-inline: auto; padding-inline: 1.25rem; }
+    body > header { background: #fff; border-bottom: 1px solid #e2e8f0; }
+    .brand { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .75rem; padding-block: 1rem; color: #1d4ed8; }
+    main { padding-block: 2.25rem; }
+    h1 { margin: 0; font-size: clamp(1.75rem, 5vw, 2.5rem); line-height: 1.25; }
+    .description, .stem { white-space: pre-wrap; }
+    .stem { overflow-x: auto; }
+    .preview { background: #fff7ed; color: #9a3412; padding: .75rem 1rem; border-radius: .5rem; }
+    .questions { padding: 0; list-style: none; }
+    .questions li { margin-block: 1rem; padding: 1.25rem; background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; }
+    .questions h2 { margin: 0 0 .65rem; font-size: 1.1rem; }
+    .questions p { margin: 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <strong>{% if english %}Math Practice{% else %}错题通 · 数学练习{% endif %}</strong>
+      {% if urls.en %}
+        {% if english %}<a href="{{ urls.zh }}" lang="zh-CN" hreflang="zh-CN">简体中文</a>
+        {% else %}<a href="{{ urls.en }}" lang="en" hreflang="en">English</a>{% endif %}
+      {% endif %}
+    </div>
+  </header>
+  <main>
+    {% if preview %}<p class="preview">{% if english %}Draft preview · Visible to the owner only{% else %}草稿预览 · 仅专题所属教师可查看{% endif %}</p>{% endif %}
+    <h1>{{ content.title }}</h1>
+    {% if content.description %}<p class="description">{{ content.description }}</p>{% endif %}
+    <ol class="questions">
+      {% for question in content.questions %}
+        <li>
+          {% if english %}
+            <h2>Question {{ forloop.counter }}{% if question.kind == 'single' %} · Single choice{% elif question.kind == 'multiple' %} · Multiple choice{% elif question.kind == 'blank' %} · Fill in the blank{% elif question.kind == 'written' %} · Written response{% endif %}</h2>
+          {% else %}
+            <h2>第 {{ forloop.counter }} 题{% if question.kind == 'single' %} · 单选题{% elif question.kind == 'multiple' %} · 多选题{% elif question.kind == 'blank' %} · 填空题{% elif question.kind == 'written' %} · 解答题{% endif %}</h2>
+          {% endif %}
+          <p class="stem">{{ question.stem }}</p>
+        </li>
+      {% endfor %}
+    </ol>
+  </main>
+</body>
+</html>

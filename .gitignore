@@ -1,23 +1,10 @@
-# dependencies
+.venv/
+local/
 node_modules/
-
-# Next.js
-.next/
-out/
-
-# local application data
-data/
-
-# test and build output
-coverage/
-test-results/
-
-# environment and editor files
+frontend/dist/
+__pycache__/
+*.pyc
 .env
-.env.local
-*.log
 .DS_Store
-Thumbs.db
-
-# TypeScript
-*.tsbuildinfo
+frontend/test-results/
+frontend/playwright-report/
